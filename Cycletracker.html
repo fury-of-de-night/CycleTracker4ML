@@ -1,0 +1,91 @@
+```html
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cycle</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}body{background:#0d0d10;color:#eee;min-height:100vh;display:flex;justify-content:center;padding:24px 16px}.app{width:100%;max-width:420px}h1{font-size:15px;font-weight:600;letter-spacing:.5px;color:#888;text-transform:uppercase;text-align:center;margin-bottom:20px}.wheel-wrap{display:flex;justify-content:center;margin-bottom:24px}.wheel{position:relative;width:220px;height:220px}.wheel svg{transform:rotate(-90deg)}.track{fill:none;stroke:#1c1c22;stroke-width:14}.prog{fill:none;stroke:#ff5c8a;stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset .6s ease}.center{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.days-num{font-size:44px;font-weight:700}.days-label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-top:2px}.sub{font-size:12px;color:#666;margin-top:6px}button.log{width:100%;background:#ff5c8a;color:#fff;border:none;padding:16px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:14px;transition:transform .15s,background .2s}button.log:active{transform:scale(.97);background:#e64f79}.stats{display:flex;gap:10px;margin-bottom:24px}.stat{flex:1;background:#17171c;border-radius:12px;padding:12px;text-align:center}.stat .v{font-size:20px;font-weight:700}.stat .l{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}h2{font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}.history{max-height:280px;overflow-y:auto;background:#141418;border-radius:14px;padding:6px}.history::-webkit-scrollbar{width:6px}.history::-webkit-scrollbar-thumb{background:#2a2a32;border-radius:3px}.entry{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #1e1e24}.entry:last-child{border-bottom:none}.entry .date{font-size:14px;font-weight:500}.entry .gap{font-size:11px;color:#666;margin-top:2px}.del{background:none;border:none;color:#555;font-size:18px;cursor:pointer;padding:4px 8px}.del:hover{color:#ff5c8a}.empty{text-align:center;color:#555;font-size:13px;padding:30px 10px}</style></head><body><div class="app"><h1>Cycle Tracker</h1><div class="wheel-wrap"><div class="wheel"><svg viewBox="0 0 220 220"><circle class="track" cx="110" cy="110" r="98"/><circle class="prog" id="prog" cx="110" cy="110" r="98" stroke-dasharray="616" stroke-dashoffset="616"/></svg><div class="center"><div class="days-num" id="daysNum">–</div><div class="days-label" id="daysLabel">days</div><div class="sub" id="subLabel"></div></div></div></div><button class="log" id="logBtn">Log Period Started</button><div class="stats"><div class="stat"><div class="v" id="avgLen">28</div><div class="l">Avg Cycle</div></div><div class="stat"><div class="v" id="lastDate">–</div><div class="l">Last Start</div></div></div><h2>History</h2><div class="history" id="history"></div></div><script>
+const KEY='cycleData';
+let data=JSON.parse(localStorage.getItem(KEY)||'{"dates":[]}');
+const CYCLE=28;
+const R=98,C=2*Math.PI*R;
+function save(){localStorage.setItem(KEY,JSON.stringify(data));}
+function fmt(d){return new Date(d).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}
+function daysBetween(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
+function avgCycle(){
+  const s=[...data.dates].sort();
+  if(s.length<2)return CYCLE;
+  let diffs=[];
+  for(let i=1;i<s.length;i++)diffs.push(daysBetween(s[i-1],s[i]));
+  return Math.round(diffs.reduce((a,b)=>a+b,0)/diffs.length);
+}
+function render(){
+  const sorted=[...data.dates].sort().reverse();
+  const histEl=document.getElementById('history');
+  histEl.innerHTML='';
+  if(sorted.length===0){
+    histEl.innerHTML='<div class="empty">No entries yet. Log your first period to begin tracking.</div>';
+  }else{
+    sorted.forEach((d,i)=>{
+      const prevIdx=i+1;
+      let gapText='';
+      if(prevIdx<sorted.length){
+        const gap=daysBetween(sorted[prevIdx],d);
+        gapText=gap+' day cycle';
+      }
+      const row=document.createElement('div');
+      row.className='entry';
+      row.innerHTML=`<div><div class="date">${fmt(d)}</div><div class="gap">${gapText}</div></div><button class="del" data-date="${d}">✕</button>`;
+      histEl.appendChild(row);
+    });
+  }
+  const avg=avgCycle();
+  document.getElementById('avgLen').textContent=avg;
+  document.getElementById('lastDate').textContent=sorted.length?fmt(sorted[0]).split(',')[0]:'–';
+  if(sorted.length){
+    const last=new Date(sorted[0]);
+    const next=new Date(last.getTime()+avg*86400000);
+    const today=new Date();
+    today.setHours(0,0,0,0);
+    last.setHours(0,0,0,0);
+    next.setHours(0,0,0,0);
+    let remaining=daysBetween(today,next);
+    const elapsed=daysBetween(last,today);
+    let pct=Math.min(Math.max(elapsed/avg,0),1);
+    document.getElementById('prog').style.strokeDashoffset=C-pct*C;
+    if(remaining<0){
+      document.getElementById('daysNum').textContent=Math.abs(remaining);
+      document.getElementById('daysLabel').textContent='days late';
+      document.getElementById('subLabel').textContent='Expected '+fmt(next);
+    }else if(remaining===0){
+      document.getElementById('daysNum').textContent='Today';
+      document.getElementById('daysLabel').textContent='expected';
+      document.getElementById('subLabel').textContent='';
+    }else{
+      document.getElementById('daysNum').textContent=remaining;
+      document.getElementById('daysLabel').textContent='days left';
+      document.getElementById('subLabel').textContent='Next: '+fmt(next);
+    }
+  }else{
+    document.getElementById('daysNum').textContent='–';
+    document.getElementById('daysLabel').textContent='days';
+    document.getElementById('subLabel').textContent='Log to start';
+    document.getElementById('prog').style.strokeDashoffset=C;
+  }
+}
+document.getElementById('logBtn').addEventListener('click',()=>{
+  const today=new Date();
+  today.setHours(0,0,0,0);
+  const iso=today.toISOString().slice(0,10);
+  if(!data.dates.includes(iso)){
+    data.dates.push(iso);
+    save();
+    render();
+  }
+});
+document.getElementById('history').addEventListener('click',e=>{
+  if(e.target.classList.contains('del')){
+    const d=e.target.dataset.date;
+    data.dates=data.dates.filter(x=>x!==d);
+    save();
+    render();
+  }
+});
+render();
+</script></body></html>
+```
