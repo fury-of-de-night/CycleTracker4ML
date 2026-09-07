@@ -1,89 +1,2463 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CycleTracker4ML</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}body{background:#0d0d10;color:#eee;min-height:100vh;display:flex;justify-content:center;padding:24px 16px}.app{width:100%;max-width:420px}h1{font-size:15px;font-weight:600;letter-spacing:.5px;color:#888;text-transform:uppercase;text-align:center;margin-bottom:20px}.wheel-wrap{display:flex;justify-content:center;margin-bottom:24px}.wheel{position:relative;width:220px;height:220px}.wheel svg{transform:rotate(-90deg)}.track{fill:none;stroke:#1c1c22;stroke-width:14}.prog{fill:none;stroke:#ff5c8a;stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset .6s ease}.center{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.days-num{font-size:44px;font-weight:700}.days-label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-top:2px}.sub{font-size:12px;color:#666;margin-top:6px}button.log{width:100%;background:#ff5c8a;color:#fff;border:none;padding:16px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:14px;transition:transform .15s,background .2s}button.log:active{transform:scale(.97);background:#e64f79}.stats{display:flex;gap:10px;margin-bottom:24px}.stat{flex:1;background:#17171c;border-radius:12px;padding:12px;text-align:center}.stat .v{font-size:20px;font-weight:700}.stat .l{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}h2{font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}.history{max-height:280px;overflow-y:auto;background:#141418;border-radius:14px;padding:6px}.history::-webkit-scrollbar{width:6px}.history::-webkit-scrollbar-thumb{background:#2a2a32;border-radius:3px}.entry{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #1e1e24}.entry:last-child{border-bottom:none}.entry .date{font-size:14px;font-weight:500}.entry .gap{font-size:11px;color:#666;margin-top:2px}.del{background:none;border:none;color:#555;font-size:18px;cursor:pointer;padding:4px 8px}.del:hover{color:#ff5c8a}.empty{text-align:center;color:#555;font-size:13px;padding:30px 10px}</style></head><body><div class="app"><h1>Cycle Tracker 4ML</h1><div class="wheel-wrap"><div class="wheel"><svg viewBox="0 0 220 220"><circle class="track" cx="110" cy="110" r="98"/><circle class="prog" id="prog" cx="110" cy="110" r="98" stroke-dasharray="616" stroke-dashoffset="616"/></svg><div class="center"><div class="days-num" id="daysNum">–</div><div class="days-label" id="daysLabel">days</div><div class="sub" id="subLabel"></div></div></div></div><button class="log" id="logBtn">Log Period Started</button><div class="stats"><div class="stat"><div class="v" id="avgLen">28</div><div class="l">Avg Cycle</div></div><div class="stat"><div class="v" id="lastDate">–</div><div class="l">Last Start</div></div></div><h2>History</h2><div class="history" id="history"></div></div><script>
-const KEY='cycleData';
-let data=JSON.parse(localStorage.getItem(KEY)||'{"dates":[]}');
-const CYCLE=28;
-const R=98,C=2*Math.PI*R;
-function save(){localStorage.setItem(KEY,JSON.stringify(data));}
-function fmt(d){return new Date(d).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}
-function daysBetween(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
-function avgCycle(){
-  const s=[...data.dates].sort();
-  if(s.length<2)return CYCLE;
-  let diffs=[];
-  for(let i=1;i<s.length;i++)diffs.push(daysBetween(s[i-1],s[i]));
-  return Math.round(diffs.reduce((a,b)=>a+b,0)/diffs.length);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0d0d10">
+
+<title>Cycle Tracker 4ML</title>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-function render(){
-  const sorted=[...data.dates].sort().reverse();
-  const histEl=document.getElementById('history');
-  histEl.innerHTML='';
-  if(sorted.length===0){
-    histEl.innerHTML='<div class="empty">No entries yet. Log your first period to begin tracking.</div>';
-  }else{
-    sorted.forEach((d,i)=>{
-      const prevIdx=i+1;
-      let gapText='';
-      if(prevIdx<sorted.length){
-        const gap=daysBetween(sorted[prevIdx],d);
-        gapText=gap+' day cycle';
-      }
-      const row=document.createElement('div');
-      row.className='entry';
-      row.innerHTML=`<div><div class="date">${fmt(d)}</div><div class="gap">${gapText}</div></div><button class="del" data-date="${d}">✕</button>`;
-      histEl.appendChild(row);
-    });
-  }
-  const avg=avgCycle();
-  document.getElementById('avgLen').textContent=avg;
-  document.getElementById('lastDate').textContent=sorted.length?fmt(sorted[0]).split(',')[0]:'–';
-  if(sorted.length){
-    const last=new Date(sorted[0]);
-    const next=new Date(last.getTime()+avg*86400000);
-    const today=new Date();
-    today.setHours(0,0,0,0);
-    last.setHours(0,0,0,0);
-    next.setHours(0,0,0,0);
-    let remaining=daysBetween(today,next);
-    const elapsed=daysBetween(last,today);
-    let pct=Math.min(Math.max(elapsed/avg,0),1);
-    document.getElementById('prog').style.strokeDashoffset=C-pct*C;
-    if(remaining<0){
-      document.getElementById('daysNum').textContent=Math.abs(remaining);
-      document.getElementById('daysLabel').textContent='days late';
-      document.getElementById('subLabel').textContent='Expected '+fmt(next);
-    }else if(remaining===0){
-      document.getElementById('daysNum').textContent='Today';
-      document.getElementById('daysLabel').textContent='expected';
-      document.getElementById('subLabel').textContent='';
-    }else{
-      document.getElementById('daysNum').textContent=remaining;
-      document.getElementById('daysLabel').textContent='days left';
-      document.getElementById('subLabel').textContent='Next: '+fmt(next);
+
+:root {
+    --bg: #0d0d10;
+    --card: #17171c;
+    --card2: #141418;
+    --border: #25252d;
+    --text: #f2f2f4;
+    --muted: #85858d;
+    --muted2: #5f5f68;
+    --pink: #ff5c8a;
+    --pink-dark: #e64f79;
+    --green: #5de1a4;
+    --blue: #65a8ff;
+    --yellow: #ffd166;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px 14px 40px;
+}
+
+.app {
+    width: 100%;
+    max-width: 520px;
+    margin: auto;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+}
+
+.logo {
+    font-size: 19px;
+    font-weight: 700;
+}
+
+.logo span {
+    color: var(--pink);
+}
+
+.settings-btn {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.hero {
+    background: linear-gradient(145deg, #1a171c, #131318);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 24px;
+    margin-bottom: 14px;
+}
+
+.wheel-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 5px 0 25px;
+}
+
+.wheel {
+    position: relative;
+    width: 230px;
+    height: 230px;
+}
+
+.wheel svg {
+    width: 230px;
+    height: 230px;
+    transform: rotate(-90deg);
+}
+
+.track {
+    fill: none;
+    stroke: #24242b;
+    stroke-width: 14;
+}
+
+.prog {
+    fill: none;
+    stroke: var(--pink);
+    stroke-width: 14;
+    stroke-linecap: round;
+    transition: stroke-dashoffset .6s ease;
+}
+
+.center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.days-num {
+    font-size: 43px;
+    font-weight: 750;
+    line-height: 1;
+}
+
+.days-label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 7px;
+}
+
+.sub {
+    font-size: 12px;
+    color: var(--muted2);
+    margin-top: 7px;
+    text-align: center;
+}
+
+.log {
+    width: 100%;
+    background: var(--pink);
+    color: white;
+    border: none;
+    padding: 16px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: .15s;
+}
+
+.log:hover {
+    filter: brightness(1.05);
+}
+
+.log:active {
+    transform: scale(.98);
+    background: var(--pink-dark);
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+    margin-bottom: 14px;
+}
+
+.stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 8px;
+    text-align: center;
+}
+
+.stat .v {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.stat .l {
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-top: 4px;
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 14px;
+}
+
+.section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.section-title h2 {
+    font-size: 13px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .7px;
+}
+
+.month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.month-nav button {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    background: var(--card2);
+    color: var(--text);
+    border-radius: 9px;
+    cursor: pointer;
+}
+
+.month-name {
+    font-size: 15px;
+    font-weight: 650;
+}
+
+.calendar {
+    width: 100%;
+}
+
+.weekdays,
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.weekday {
+    text-align: center;
+    font-size: 10px;
+    color: var(--muted2);
+    padding: 6px 0;
+}
+
+.day {
+    min-height: 43px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    font-size: 12px;
+}
+
+.day span {
+    width: 31px;
+    height: 31px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+}
+
+.day.period span {
+    background: var(--pink);
+    color: white;
+}
+
+.day.predicted span {
+    border: 2px solid var(--pink);
+    color: var(--pink);
+}
+
+.day.today span {
+    box-shadow: 0 0 0 2px var(--blue);
+}
+
+.day.fertile span {
+    box-shadow: 0 0 0 2px var(--green);
+}
+
+.day.empty {
+    pointer-events: none;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 13px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+
+.dot.period {
+    background: var(--pink);
+}
+
+.dot.predicted {
+    border: 2px solid var(--pink);
+}
+
+.dot.fertile {
+    border: 2px solid var(--green);
+}
+
+.history {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.entry {
+    padding: 13px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.entry:last-child {
+    border-bottom: none;
+}
+
+.entry-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.entry-date {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.entry-duration {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+.entry-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.small-btn {
+    background: var(--card2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 9px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.small-btn:hover {
+    color: white;
+}
+
+.delete:hover {
+    color: var(--pink);
+}
+
+.empty {
+    text-align: center;
+    color: var(--muted2);
+    font-size: 13px;
+    padding: 25px 10px;
+}
+
+.insights {
+    display: grid;
+    gap: 9px;
+}
+
+.insight {
+    background: var(--card2);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.insight-title {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.insight-value {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.modal-bg {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.72);
+    backdrop-filter: blur(5px);
+    z-index: 100;
+    padding: 20px;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-bg.open {
+    display: flex;
+}
+
+.modal {
+    width: 100%;
+    max-width: 430px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #18181d;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 20px;
+}
+
+.modal h2 {
+    font-size: 18px;
+    margin-bottom: 18px;
+}
+
+.field {
+    margin-bottom: 15px;
+}
+
+.field label {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 7px;
+}
+
+input[type="date"] {
+    width: 100%;
+    padding: 12px;
+    background: var(--card2);
+    color: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    outline: none;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 9px;
+    margin-top: 18px;
+}
+
+.modal-buttons button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.cancel {
+    background: var(--card2);
+    color: var(--text);
+    border: 1px solid var(--border) !important;
+}
+
+.confirm {
+    background: var(--pink);
+    color: white;
+}
+
+.settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-row:last-child {
+    border-bottom: none;
+}
+
+.settings-info strong {
+    display: block;
+    font-size: 13px;
+}
+
+.settings-info small {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.setting-action {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    color: white;
+    padding: 8px 10px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.danger {
+    color: var(--pink);
+}
+
+.file-input {
+    display: none;
+}
+
+.notice {
+    background: rgba(255,92,138,.08);
+    border: 1px solid rgba(255,92,138,.2);
+    padding: 12px;
+    border-radius: 11px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+    margin-top: 12px;
+}
+
+@media (max-width: 380px) {
+    .stats {
+        grid-template-columns: 1fr 1fr;
     }
-  }else{
-    document.getElementById('daysNum').textContent='–';
-    document.getElementById('daysLabel').textContent='days';
-    document.getElementById('subLabel').textContent='Log to start';
-    document.getElementById('prog').style.strokeDashoffset=C;
-  }
+
+    .stat:last-child {
+        grid-column: span 2;
+    }
+
+    .hero {
+        padding: 18px;
+    }
 }
-document.getElementById('logBtn').addEventListener('click',()=>{
-  const today=new Date();
-  today.setHours(0,0,0,0);
-  const iso=today.toISOString().slice(0,10);
-  if(!data.dates.includes(iso)){
-    data.dates.push(iso);
-    save();
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <header class="header">
+        <div class="logo">Cycle<span>.</span></div>
+        <button class="settings-btn" id="settingsBtn">⚙</button>
+    </header>
+
+    <section class="hero">
+
+        <div class="wheel-wrap">
+
+            <div class="wheel">
+
+                <svg viewBox="0 0 230 230">
+
+                    <circle
+                        class="track"
+                        cx="115"
+                        cy="115"
+                        r="98"
+                    />
+
+                    <circle
+                        class="prog"
+                        id="prog"
+                        cx="115"
+                        cy="115"
+                        r="98"
+                        stroke-dasharray="615.75"
+                        stroke-dashoffset="615.75"
+                    />
+
+                </svg>
+
+                <div class="center">
+
+                    <div class="days-num" id="daysNum">–</div>
+
+                    <div class="days-label" id="daysLabel">
+                        days
+                    </div>
+
+                    <div class="sub" id="subLabel"></div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <button class="log" id="logBtn">
+            Log Period Started
+        </button>
+
+    </section>
+
+    <section class="stats">
+
+        <div class="stat">
+            <div class="v" id="avgLen">28</div>
+            <div class="l">Avg Cycle</div>
+        </div>
+
+        <div class="stat">
+            <div class="v" id="avgPeriod">–</div>
+            <div class="l">Avg Period</div>
+        </div>
+
+        <div class="stat">
+            <div class="v" id="lastDate">–</div>
+            <div class="l">Last Start</div>
+        </div>
+
+    </section>
+
+    <section class="card">
+
+        <div class="section-title">
+            <h2>Calendar</h2>
+        </div>
+
+        <div class="month-nav">
+
+            <button id="prevMonth">‹</button>
+
+            <div class="month-name" id="monthName"></div>
+
+            <button id="nextMonth">›</button>
+
+        </div>
+
+        <div class="calendar">
+
+            <div class="weekdays">
+
+                <div class="weekday">Sun</div>
+                <div class="weekday">Mon</div>
+                <div class="weekday">Tue</div>
+                <div class="weekday">Wed</div>
+                <div class="weekday">Thu</div>
+                <div class="weekday">Fri</div>
+                <div class="weekday">Sat</div>
+
+            </div>
+
+            <div class="calendar-grid" id="calendarGrid"></div>
+
+        </div>
+
+        <div class="legend">
+
+            <div class="legend-item">
+                <div class="dot period"></div>
+                Period
+            </div>
+
+            <div class="legend-item">
+                <div class="dot predicted"></div>
+                Predicted
+            </div>
+
+            <div class="legend-item">
+                <div class="dot fertile"></div>
+                Estimated fertile
+            </div>
+
+        </div>
+
+    </section>
+
+    <section class="card">
+
+        <div class="section-title">
+            <h2>Insights</h2>
+        </div>
+
+        <div class="insights">
+
+            <div class="insight">
+                <div class="insight-title">
+                    Next Expected Period
+                </div>
+
+                <div class="insight-value" id="nextPeriod">
+                    —
+                </div>
+            </div>
+
+            <div class="insight">
+                <div class="insight-title">
+                    Estimated Fertile Window
+                </div>
+
+                <div class="insight-value" id="fertileWindow">
+                    —
+                </div>
+            </div>
+
+            <div class="insight">
+                <div class="insight-title">
+                    Recorded Cycles
+                </div>
+
+                <div class="insight-value" id="cycleCount">
+                    0
+                </div>
+            </div>
+
+        </div>
+
+        <div class="notice">
+            Predictions are estimates based on your recorded history and
+            should not be treated as medical advice or as a reliable method
+            of preventing pregnancy.
+        </div>
+
+    </section>
+
+    <section class="card">
+
+        <div class="section-title">
+            <h2>History</h2>
+        </div>
+
+        <div class="history" id="history"></div>
+
+    </section>
+
+</div>
+
+
+<!-- PERIOD MODAL -->
+
+<div class="modal-bg" id="periodModal">
+
+    <div class="modal">
+
+        <h2 id="modalTitle">
+            Log Period
+        </h2>
+
+        <div class="field">
+
+            <label>Start date</label>
+
+            <input
+                type="date"
+                id="startDate"
+            >
+
+        </div>
+
+        <div class="field">
+
+            <label>End date</label>
+
+            <input
+                type="date"
+                id="endDate"
+            >
+
+        </div>
+
+        <div class="modal-buttons">
+
+            <button
+                class="cancel"
+                id="cancelPeriod"
+            >
+                Cancel
+            </button>
+
+            <button
+                class="confirm"
+                id="savePeriod"
+            >
+                Save
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- SETTINGS MODAL -->
+
+<div class="modal-bg" id="settingsModal">
+
+    <div class="modal">
+
+        <h2>Settings & Data</h2>
+
+        <div class="settings-row">
+
+            <div class="settings-info">
+
+                <strong>Export Data</strong>
+
+                <small>
+                    Save a backup of your tracker
+                </small>
+
+            </div>
+
+            <button
+                class="setting-action"
+                id="exportBtn"
+            >
+                Export
+            </button>
+
+        </div>
+
+        <div class="settings-row">
+
+            <div class="settings-info">
+
+                <strong>Import Data</strong>
+
+                <small>
+                    Restore a previous backup
+                </small>
+
+            </div>
+
+            <button
+                class="setting-action"
+                id="importBtn"
+            >
+                Import
+            </button>
+
+        </div>
+
+        <input
+            type="file"
+            id="fileInput"
+            class="file-input"
+            accept=".json,application/json"
+        >
+
+        <div class="settings-row">
+
+            <div class="settings-info">
+
+                <strong>Delete All Data</strong>
+
+                <small>
+                    Permanently remove local records
+                </small>
+
+            </div>
+
+            <button
+                class="setting-action danger"
+                id="deleteAllBtn"
+            >
+                Delete
+            </button>
+
+        </div>
+
+        <div class="notice">
+            Your tracker data is stored locally in this browser using
+            localStorage. This version does not send your entries to a
+            server.
+        </div>
+
+        <div class="modal-buttons">
+
+            <button
+                class="cancel"
+                id="closeSettings"
+            >
+                Close
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* ============================================================
+   DATA
+============================================================ */
+
+const KEY = "cycleTracker_v2";
+
+let data = loadData();
+
+let editingId = null;
+
+let calendarDate = new Date();
+
+calendarDate.setDate(1);
+
+
+/* ============================================================
+   DEFAULT DATA
+============================================================ */
+
+function defaultData() {
+
+    return {
+        entries: []
+    };
+
+}
+
+
+/* ============================================================
+   LOAD / SAVE
+============================================================ */
+
+function loadData() {
+
+    try {
+
+        const saved = localStorage.getItem(KEY);
+
+        if (!saved) {
+            return defaultData();
+        }
+
+        const parsed = JSON.parse(saved);
+
+        if (!parsed.entries || !Array.isArray(parsed.entries)) {
+            return defaultData();
+        }
+
+        return parsed;
+
+    } catch {
+
+        return defaultData();
+
+    }
+
+}
+
+
+function saveData() {
+
+    localStorage.setItem(
+        KEY,
+        JSON.stringify(data)
+    );
+
+}
+
+
+/* ============================================================
+   DATE HELPERS
+============================================================ */
+
+/*
+   IMPORTANT:
+   We deliberately avoid toISOString() for calendar dates.
+
+   toISOString() converts to UTC and can cause a local date
+   to become the previous/next day.
+*/
+
+function localDateString(date = new Date()) {
+
+    const y = date.getFullYear();
+
+    const m = String(
+        date.getMonth() + 1
+    ).padStart(2, "0");
+
+    const d = String(
+        date.getDate()
+    ).padStart(2, "0");
+
+    return `${y}-${m}-${d}`;
+
+}
+
+
+function parseDate(str) {
+
+    const parts = str.split("-");
+
+    return new Date(
+        Number(parts[0]),
+        Number(parts[1]) - 1,
+        Number(parts[2])
+    );
+
+}
+
+
+function daysBetween(a, b) {
+
+    const dateA =
+        typeof a === "string"
+            ? parseDate(a)
+            : new Date(a);
+
+    const dateB =
+        typeof b === "string"
+            ? parseDate(b)
+            : new Date(b);
+
+    dateA.setHours(12,0,0,0);
+    dateB.setHours(12,0,0,0);
+
+    return Math.round(
+        (dateB - dateA) / 86400000
+    );
+
+}
+
+
+function addDays(date, amount) {
+
+    const result =
+        typeof date === "string"
+            ? parseDate(date)
+            : new Date(date);
+
+    result.setDate(
+        result.getDate() + amount
+    );
+
+    return result;
+
+}
+
+
+function formatDate(dateString) {
+
+    if (!dateString) return "—";
+
+    return parseDate(dateString)
+        .toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+        });
+
+}
+
+
+function formatShortDate(dateString) {
+
+    if (!dateString) return "—";
+
+    return parseDate(dateString)
+        .toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric"
+        });
+
+}
+
+
+/* ============================================================
+   SORTING
+============================================================ */
+
+function sortedEntries() {
+
+    return [...data.entries]
+        .sort(
+            (a,b) =>
+                b.start.localeCompare(a.start)
+        );
+
+}
+
+
+/* ============================================================
+   CYCLE STATISTICS
+============================================================ */
+
+function cycleLengths() {
+
+    const sorted =
+        [...data.entries]
+        .sort(
+            (a,b) =>
+                a.start.localeCompare(b.start)
+        );
+
+    const lengths = [];
+
+    for (
+        let i = 1;
+        i < sorted.length;
+        i++
+    ) {
+
+        const gap =
+            daysBetween(
+                sorted[i - 1].start,
+                sorted[i].start
+            );
+
+        if (gap > 0 && gap < 100) {
+
+            lengths.push(gap);
+
+        }
+
+    }
+
+    return lengths;
+
+}
+
+
+function averageCycle() {
+
+    const lengths =
+        cycleLengths();
+
+    if (!lengths.length) {
+        return 28;
+    }
+
+    return Math.round(
+        lengths.reduce(
+            (sum, value) =>
+                sum + value,
+            0
+        ) / lengths.length
+    );
+
+}
+
+
+function periodLength(entry) {
+
+    if (
+        !entry.end ||
+        !entry.start
+    ) {
+        return null;
+    }
+
+    const difference =
+        daysBetween(
+            entry.start,
+            entry.end
+        );
+
+    return difference >= 0
+        ? difference + 1
+        : null;
+
+}
+
+
+function averagePeriod() {
+
+    const lengths =
+        data.entries
+        .map(periodLength)
+        .filter(
+            value =>
+                value !== null &&
+                value > 0 &&
+                value < 20
+        );
+
+    if (!lengths.length) {
+        return null;
+    }
+
+    return Math.round(
+        lengths.reduce(
+            (a,b) => a + b,
+            0
+        ) / lengths.length
+    );
+
+}
+
+
+/* ============================================================
+   PREDICTIONS
+============================================================ */
+
+function predictionInfo() {
+
+    const entries =
+        sortedEntries();
+
+    if (!entries.length) {
+        return null;
+    }
+
+    const last =
+        parseDate(entries[0].start);
+
+    const cycle =
+        averageCycle();
+
+    const next =
+        addDays(last, cycle);
+
+    /*
+       Approximate fertile window:
+       ovulation is estimated around 14 days before
+       the next expected period.
+    */
+
+    const ovulation =
+        addDays(next, -14);
+
+    const fertileStart =
+        addDays(ovulation, -5);
+
+    const fertileEnd =
+        addDays(ovulation, 1);
+
+    return {
+        last,
+        cycle,
+        next,
+        ovulation,
+        fertileStart,
+        fertileEnd
+    };
+
+}
+
+
+/* ============================================================
+   PERIOD CHECK
+============================================================ */
+
+function isDateInPeriod(dateString) {
+
+    return data.entries.some(entry => {
+
+        const start =
+            parseDate(entry.start);
+
+        const end =
+            entry.end
+                ? parseDate(entry.end)
+                : start;
+
+        const date =
+            parseDate(dateString);
+
+        return (
+            date >= start &&
+            date <= end
+        );
+
+    });
+
+}
+
+
+/* ============================================================
+   RENDER MAIN
+============================================================ */
+
+function render() {
+
+    renderHero();
+
+    renderStats();
+
+    renderCalendar();
+
+    renderInsights();
+
+    renderHistory();
+
+}
+
+
+/* ============================================================
+   HERO
+============================================================ */
+
+function renderHero() {
+
+    const info =
+        predictionInfo();
+
+    const daysNum =
+        document.getElementById(
+            "daysNum"
+        );
+
+    const daysLabel =
+        document.getElementById(
+            "daysLabel"
+        );
+
+    const subLabel =
+        document.getElementById(
+            "subLabel"
+        );
+
+    const progress =
+        document.getElementById(
+            "prog"
+        );
+
+    const circumference =
+        2 * Math.PI * 98;
+
+    if (!info) {
+
+        daysNum.textContent = "–";
+
+        daysLabel.textContent =
+            "days";
+
+        subLabel.textContent =
+            "Log to start";
+
+        progress.style.strokeDashoffset =
+            circumference;
+
+        return;
+
+    }
+
+    const today =
+        parseDate(
+            localDateString()
+        );
+
+    const remaining =
+        daysBetween(
+            today,
+            info.next
+        );
+
+    const elapsed =
+        daysBetween(
+            info.last,
+            today
+        );
+
+    let percentage =
+        elapsed / info.cycle;
+
+    percentage =
+        Math.min(
+            Math.max(
+                percentage,
+                0
+            ),
+            1
+        );
+
+    progress.style.strokeDashoffset =
+        circumference -
+        percentage * circumference;
+
+
+    if (remaining < 0) {
+
+        daysNum.textContent =
+            Math.abs(remaining);
+
+        daysLabel.textContent =
+            "days late";
+
+        subLabel.textContent =
+            "Expected " +
+            formatDate(
+                localDateString(
+                    info.next
+                )
+            );
+
+    }
+
+    else if (remaining === 0) {
+
+        daysNum.textContent =
+            "Today";
+
+        daysLabel.textContent =
+            "expected";
+
+        subLabel.textContent = "";
+
+    }
+
+    else {
+
+        daysNum.textContent =
+            remaining;
+
+        daysLabel.textContent =
+            "days left";
+
+        subLabel.textContent =
+            "Next: " +
+            formatDate(
+                localDateString(
+                    info.next
+                )
+            );
+
+    }
+
+}
+
+
+/* ============================================================
+   STATS
+============================================================ */
+
+function renderStats() {
+
+    const entries =
+        sortedEntries();
+
+    document.getElementById(
+        "avgLen"
+    ).textContent =
+        averageCycle();
+
+    const avgPeriod =
+        averagePeriod();
+
+    document.getElementById(
+        "avgPeriod"
+    ).textContent =
+        avgPeriod
+            ? avgPeriod
+            : "–";
+
+    document.getElementById(
+        "lastDate"
+    ).textContent =
+        entries.length
+            ? formatShortDate(
+                entries[0].start
+              )
+            : "–";
+
+}
+
+
+/* ============================================================
+   CALENDAR
+============================================================ */
+
+function renderCalendar() {
+
+    const grid =
+        document.getElementById(
+            "calendarGrid"
+        );
+
+    const monthName =
+        document.getElementById(
+            "monthName"
+        );
+
+    grid.innerHTML = "";
+
+    const year =
+        calendarDate.getFullYear();
+
+    const month =
+        calendarDate.getMonth();
+
+    monthName.textContent =
+        calendarDate.toLocaleDateString(
+            undefined,
+            {
+                month: "long",
+                year: "numeric"
+            }
+        );
+
+    const firstDay =
+        new Date(
+            year,
+            month,
+            1
+        ).getDay();
+
+    const daysInMonth =
+        new Date(
+            year,
+            month + 1,
+            0
+        ).getDate();
+
+    for (
+        let i = 0;
+        i < firstDay;
+        i++
+    ) {
+
+        const blank =
+            document.createElement(
+                "div"
+            );
+
+        blank.className =
+            "day empty";
+
+        grid.appendChild(blank);
+
+    }
+
+
+    const info =
+        predictionInfo();
+
+    for (
+        let day = 1;
+        day <= daysInMonth;
+        day++
+    ) {
+
+        const date =
+            new Date(
+                year,
+                month,
+                day
+            );
+
+        const dateString =
+            localDateString(date);
+
+        const cell =
+            document.createElement(
+                "div"
+            );
+
+        cell.className = "day";
+
+        const number =
+            document.createElement(
+                "span"
+            );
+
+        number.textContent =
+            day;
+
+        cell.appendChild(number);
+
+
+        if (
+            dateString ===
+            localDateString()
+        ) {
+
+            cell.classList.add(
+                "today"
+            );
+
+        }
+
+
+        if (
+            isDateInPeriod(
+                dateString
+            )
+        ) {
+
+            cell.classList.add(
+                "period"
+            );
+
+        }
+
+
+        if (info) {
+
+            const nextString =
+                localDateString(
+                    info.next
+                );
+
+            if (
+                dateString ===
+                nextString
+            ) {
+
+                cell.classList.add(
+                    "predicted"
+                );
+
+            }
+
+
+            const fertileStart =
+                localDateString(
+                    info.fertileStart
+                );
+
+            const fertileEnd =
+                localDateString(
+                    info.fertileEnd
+                );
+
+            if (
+                dateString >= fertileStart &&
+                dateString <= fertileEnd
+            ) {
+
+                cell.classList.add(
+                    "fertile"
+                );
+
+            }
+
+        }
+
+        grid.appendChild(cell);
+
+    }
+
+}
+
+
+/* ============================================================
+   INSIGHTS
+============================================================ */
+
+function renderInsights() {
+
+    const info =
+        predictionInfo();
+
+    document.getElementById(
+        "cycleCount"
+    ).textContent =
+        cycleLengths().length;
+
+    if (!info) {
+
+        document.getElementById(
+            "nextPeriod"
+        ).textContent =
+            "Record a period first";
+
+        document.getElementById(
+            "fertileWindow"
+        ).textContent =
+            "—";
+
+        return;
+
+    }
+
+    document.getElementById(
+        "nextPeriod"
+    ).textContent =
+        formatDate(
+            localDateString(
+                info.next
+            )
+        );
+
+
+    document.getElementById(
+        "fertileWindow"
+    ).textContent =
+        formatShortDate(
+            localDateString(
+                info.fertileStart
+            )
+        ) +
+        " – " +
+        formatShortDate(
+            localDateString(
+                info.fertileEnd
+            )
+        );
+
+}
+
+
+/* ============================================================
+   HISTORY
+============================================================ */
+
+function renderHistory() {
+
+    const history =
+        document.getElementById(
+            "history"
+        );
+
+    history.innerHTML = "";
+
+    const entries =
+        sortedEntries();
+
+    if (!entries.length) {
+
+        history.innerHTML =
+            `<div class="empty">
+                No entries yet.
+                Log your first period to begin.
+            </div>`;
+
+        return;
+
+    }
+
+
+    entries.forEach(entry => {
+
+        const row =
+            document.createElement(
+                "div"
+            );
+
+        row.className =
+            "entry";
+
+        const duration =
+            periodLength(entry);
+
+        const durationText =
+            duration
+                ? `${duration} day period`
+                : "End date not recorded";
+
+
+        row.innerHTML = `
+
+            <div class="entry-top">
+
+                <div>
+
+                    <div class="entry-date">
+                        ${formatDate(entry.start)}
+                    </div>
+
+                    <div class="entry-duration">
+                        ${durationText}
+                    </div>
+
+                </div>
+
+                <div class="entry-actions">
+
+                    <button
+                        class="small-btn edit"
+                        data-id="${entry.id}"
+                    >
+                        Edit
+                    </button>
+
+                    <button
+                        class="small-btn delete"
+                        data-id="${entry.id}"
+                    >
+                        Delete
+                    </button>
+
+                </div>
+
+            </div>
+
+        `;
+
+        history.appendChild(row);
+
+    });
+
+}
+
+
+/* ============================================================
+   MODAL
+============================================================ */
+
+function openPeriodModal(
+    entry = null
+) {
+
+    editingId =
+        entry
+            ? entry.id
+            : null;
+
+    document.getElementById(
+        "modalTitle"
+    ).textContent =
+        entry
+            ? "Edit Period"
+            : "Log Period";
+
+
+    document.getElementById(
+        "startDate"
+    ).value =
+        entry
+            ? entry.start
+            : localDateString();
+
+
+    document.getElementById(
+        "endDate"
+    ).value =
+        entry?.end || "";
+
+
+    document.getElementById(
+        "periodModal"
+    ).classList.add(
+        "open"
+    );
+
+}
+
+
+function closePeriodModal() {
+
+    editingId = null;
+
+    document.getElementById(
+        "periodModal"
+    ).classList.remove(
+        "open"
+    );
+
+}
+
+
+/* ============================================================
+   SAVE PERIOD
+============================================================ */
+
+function savePeriod() {
+
+    const start =
+        document.getElementById(
+            "startDate"
+        ).value;
+
+    const end =
+        document.getElementById(
+            "endDate"
+        ).value;
+
+
+    if (!start) {
+
+        alert(
+            "Please select a start date."
+        );
+
+        return;
+
+    }
+
+
+    if (
+        end &&
+        end < start
+    ) {
+
+        alert(
+            "The end date cannot be before the start date."
+        );
+
+        return;
+
+    }
+
+
+    if (editingId) {
+
+        const entry =
+            data.entries.find(
+                item =>
+                    item.id ===
+                    editingId
+            );
+
+        if (entry) {
+
+            entry.start = start;
+
+            entry.end =
+                end || null;
+
+        }
+
+    }
+
+    else {
+
+        /*
+           Prevent duplicate dates.
+        */
+
+        const duplicate =
+            data.entries.some(
+                entry =>
+                    entry.start === start
+            );
+
+        if (duplicate) {
+
+            alert(
+                "A period is already recorded for this date."
+            );
+
+            return;
+
+        }
+
+
+        data.entries.push({
+
+            id:
+                Date.now().toString(),
+
+            start,
+
+            end:
+                end || null
+
+        });
+
+    }
+
+
+    saveData();
+
+    closePeriodModal();
+
     render();
-  }
-});
-document.getElementById('history').addEventListener('click',e=>{
-  if(e.target.classList.contains('del')){
-    const d=e.target.dataset.date;
-    data.dates=data.dates.filter(x=>x!==d);
-    save();
+
+}
+
+
+/* ============================================================
+   DELETE ENTRY
+============================================================ */
+
+function deleteEntry(id) {
+
+    const entry =
+        data.entries.find(
+            item =>
+                item.id === id
+        );
+
+    if (!entry) return;
+
+
+    const confirmed =
+        confirm(
+            `Delete the period starting ${formatDate(entry.start)}?`
+        );
+
+    if (!confirmed) return;
+
+
+    data.entries =
+        data.entries.filter(
+            item =>
+                item.id !== id
+        );
+
+    saveData();
+
     render();
-  }
-});
+
+}
+
+
+/* ============================================================
+   EXPORT
+============================================================ */
+
+function exportData() {
+
+    const backup = {
+
+        app:
+            "Cycle Tracker 4ML",
+
+        version:
+            2,
+
+        exportedAt:
+            new Date().toISOString(),
+
+        data
+
+    };
+
+
+    const blob =
+        new Blob(
+            [
+                JSON.stringify(
+                    backup,
+                    null,
+                    2
+                )
+            ],
+            {
+                type:
+                    "application/json"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(
+            blob
+        );
+
+    const a =
+        document.createElement(
+            "a"
+        );
+
+    a.href = url;
+
+    a.download =
+        "cycle-tracker-4ML-backup.json";
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+
+}
+
+
+/* ============================================================
+   IMPORT
+============================================================ */
+
+function importData(file) {
+
+    const reader =
+        new FileReader();
+
+
+    reader.onload = function(event) {
+
+        try {
+
+            const backup =
+                JSON.parse(
+                    event.target.result
+                );
+
+
+            let imported;
+
+            if (
+                backup.data &&
+                Array.isArray(
+                    backup.data.entries
+                )
+            ) {
+
+                imported =
+                    backup.data;
+
+            }
+
+            else if (
+                Array.isArray(
+                    backup.entries
+                )
+            ) {
+
+                imported = backup;
+
+            }
+
+            else {
+
+                throw new Error(
+                    "Invalid format"
+                );
+
+            }
+
+
+            /*
+               Basic validation.
+            */
+
+            imported.entries =
+                imported.entries.filter(
+                    entry =>
+                        entry &&
+                        typeof entry.start === "string"
+                );
+
+
+            const confirmed =
+                confirm(
+                    `Import ${imported.entries.length} period entries?`
+                );
+
+            if (!confirmed) return;
+
+
+            data = imported;
+
+            saveData();
+
+            render();
+
+            alert(
+                "Data imported successfully."
+            );
+
+        }
+
+        catch {
+
+            alert(
+                "Could not import this file. Please select a valid Cycle Tracker backup."
+            );
+
+        }
+
+    };
+
+
+    reader.readAsText(file);
+
+}
+
+
+/* ============================================================
+   DELETE ALL
+============================================================ */
+
+function deleteAllData() {
+
+    if (!data.entries.length) {
+
+        alert(
+            "There is no data to delete."
+        );
+
+        return;
+
+    }
+
+
+    const confirmed =
+        confirm(
+            "Delete ALL cycle data? This cannot be undone unless you have an exported backup."
+        );
+
+    if (!confirmed) return;
+
+
+    const second =
+        confirm(
+            "Are you absolutely sure you want to permanently delete all entries?"
+        );
+
+    if (!second) return;
+
+
+    data =
+        defaultData();
+
+    saveData();
+
+    render();
+
+    document.getElementById(
+        "settingsModal"
+    ).classList.remove(
+        "open"
+    );
+
+}
+
+
+/* ============================================================
+   BUTTON EVENTS
+============================================================ */
+
+document
+    .getElementById("logBtn")
+    .addEventListener(
+        "click",
+        () => openPeriodModal()
+    );
+
+
+document
+    .getElementById("cancelPeriod")
+    .addEventListener(
+        "click",
+        closePeriodModal
+    );
+
+
+document
+    .getElementById("savePeriod")
+    .addEventListener(
+        "click",
+        savePeriod
+    );
+
+
+document
+    .getElementById("prevMonth")
+    .addEventListener(
+        "click",
+        () => {
+
+            calendarDate.setMonth(
+                calendarDate.getMonth() - 1
+            );
+
+            renderCalendar();
+
+        }
+    );
+
+
+document
+    .getElementById("nextMonth")
+    .addEventListener(
+        "click",
+        () => {
+
+            calendarDate.setMonth(
+                calendarDate.getMonth() + 1
+            );
+
+            renderCalendar();
+
+        }
+    );
+
+
+/* ============================================================
+   HISTORY EVENTS
+============================================================ */
+
+document
+    .getElementById("history")
+    .addEventListener(
+        "click",
+        event => {
+
+            const button =
+                event.target.closest(
+                    "button"
+                );
+
+            if (!button) return;
+
+            const id =
+                button.dataset.id;
+
+            if (
+                button.classList.contains(
+                    "delete"
+                )
+            ) {
+
+                deleteEntry(id);
+
+            }
+
+            if (
+                button.classList.contains(
+                    "edit"
+                )
+            ) {
+
+                const entry =
+                    data.entries.find(
+                        item =>
+                            item.id === id
+                    );
+
+                if (entry) {
+
+                    openPeriodModal(
+                        entry
+                    );
+
+                }
+
+            }
+
+        }
+    );
+
+
+/* ============================================================
+   SETTINGS
+============================================================ */
+
+document
+    .getElementById("settingsBtn")
+    .addEventListener(
+        "click",
+        () => {
+
+            document
+                .getElementById(
+                    "settingsModal"
+                )
+                .classList.add(
+                    "open"
+                );
+
+        }
+    );
+
+
+document
+    .getElementById("closeSettings")
+    .addEventListener(
+        "click",
+        () => {
+
+            document
+                .getElementById(
+                    "settingsModal"
+                )
+                .classList.remove(
+                    "open"
+                );
+
+        }
+    );
+
+
+document
+    .getElementById("exportBtn")
+    .addEventListener(
+        "click",
+        exportData
+    );
+
+
+document
+    .getElementById("importBtn")
+    .addEventListener(
+        "click",
+        () => {
+
+            document
+                .getElementById(
+                    "fileInput"
+                )
+                .click();
+
+        }
+    );
+
+
+document
+    .getElementById("fileInput")
+    .addEventListener(
+        "change",
+        event => {
+
+            const file =
+                event.target.files[0];
+
+            if (file) {
+
+                importData(file);
+
+            }
+
+            event.target.value = "";
+
+        }
+    );
+
+
+document
+    .getElementById("deleteAllBtn")
+    .addEventListener(
+        "click",
+        deleteAllData
+    );
+
+
+/* ============================================================
+   CLOSE MODALS WHEN CLICKING OUTSIDE
+============================================================ */
+
+document
+    .querySelectorAll(".modal-bg")
+    .forEach(modal => {
+
+        modal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target === modal
+                ) {
+
+                    modal.classList.remove(
+                        "open"
+                    );
+
+                }
+
+            }
+        );
+
+    });
+
+
+/* ============================================================
+   INITIAL RENDER
+============================================================ */
+
 render();
-</script></body></html>
+
+</script>
+
+</body>
+</html>
